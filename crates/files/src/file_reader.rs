@@ -1,24 +1,24 @@
-use std::{io::Read, sync::{mpsc::{channel, Receiver, Sender}, Arc}};
+use std::{io::Read, sync::{mpsc::{channel, Receiver, Sender}, Mutex}};
 
 use errors::GenericError;
 
-use crate::file_chunk::{FileChunk, FILE_CHINK_MAX_SIZE};
+use crate::{file_chunk::{FileChunk, FILE_CHINK_MAX_SIZE}, file_reader_manager::FileReaderMessage};
 
-pub struct Reader {
+pub struct FileReader {
     id: u32,
-    pub chunk_receiver: Receiver<Option<FileChunk>>,
+    pub chunk_receiver: Mutex<Receiver<Option<FileChunk>>>,
     chunk_sender: Sender<Option<FileChunk>>,
     slot_sender: Sender<()>
 }
 
 static MAX_CHUNKS: u8 = 10;
 
-impl Reader {
+impl FileReader {
     pub fn new(
         id: u32,
         file: std::path::PathBuf,
         pool: &thread_pool::ThreadPool,
-        finish_channel: Sender<()>) -> Reader {
+        finish_channel: Sender<FileReaderMessage>) -> FileReader {
         let (slot_sender, slot_receiver) = channel::<()>();
         let (chunk_sender, chunk_receiver) = channel();
 
@@ -43,7 +43,7 @@ impl Reader {
             }
             chunk_sender.send(None)?;
 
-            finish_channel.send(())?;
+            finish_channel.send(FileReaderMessage::ReaderFinished(id))?;
 
             Ok(())
         });
@@ -52,16 +52,19 @@ impl Reader {
             slot_sender.send(()).unwrap();
         }
 
-        Reader {
+        FileReader {
             id,
-            chunk_receiver,
+            chunk_receiver: Mutex::new(chunk_receiver),
             chunk_sender,
             slot_sender
         }
     }
 
     pub fn get_chunk(&self) -> Option<FileChunk> {
-        let chunk = self.chunk_receiver.recv().unwrap();
+        let chunk = { 
+            let receiver = &*self.chunk_receiver.lock().unwrap();
+            receiver.recv().unwrap()
+        };
         match chunk {
             Some(chunk) => {
                 let _ = self.slot_sender.send(());

@@ -1,6 +1,7 @@
 use std::{cell::RefCell, io::Write, path::PathBuf, rc::Rc};
 
 use errors::GenericError;
+use files::FileReaderManager;
 use net::{JSONReader, TcpEndpoint};
 
 use crate::messages::{DSMessage, DSMessageType, MessageFiles};
@@ -24,10 +25,6 @@ pub fn send_files(
             let files = MessageFiles {
                 files
             };
-
-            // let files = serde_json::json!({
-            //     "asd": "asd"
-            // });
 
             let json = serde_json::to_string(&files)?;
             main_stream.write(json.as_bytes())?;

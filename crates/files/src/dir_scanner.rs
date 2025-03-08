@@ -2,7 +2,7 @@ use std::{collections::VecDeque, path::{Path, PathBuf}};
 
 use errors::GenericError;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FileEntry {
     pub partial_path: Vec<String>,
     pub size: u64

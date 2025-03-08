@@ -1,4 +1,6 @@
 mod dir_scanner;
+mod file_chunk;
+mod file_reader;
 
 pub use dir_scanner::get_files_in_dir;
 pub use dir_scanner::FileEntry;

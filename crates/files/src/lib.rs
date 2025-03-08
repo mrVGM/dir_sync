@@ -9,3 +9,4 @@ pub use dir_scanner::path_to_list;
 pub use dir_scanner::list_to_path;
 
 pub use file_reader_manager::FileReaderManager;
+pub use file_reader_manager::ReaderState;

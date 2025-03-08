@@ -36,7 +36,7 @@ fn main1() -> Result<(), GenericError> {
 fn main() -> Result<(), GenericError> {
     let args: Vec<String> = std::env::args().collect();
     let run: &str = &args[1];
-    let endpoint = match run {
+    match run {
         "server" => {
             let (server_end, addr) = new_server_endpoint(None)?;
             println!("{:?}", addr);
@@ -54,9 +54,22 @@ fn main() -> Result<(), GenericError> {
             file_receiver::receive_files(client_end)?;
         }
         _ => Err(errors::new_custom_error("CLI Error"))?
-    };
+    }
+
+    let report = thread_pool::get_report_channel();
+    report.send(None)?;
 
     println!("Hello, world!");
+
+    let report_channel = thread_pool::get_report_receiver();
+    let err = {
+        let channel = &*report_channel.lock().unwrap();
+        channel.recv()?
+    };
+
+    if let Some(err) = err {
+        return Err(err);
+    }
 
     Ok(())
 }

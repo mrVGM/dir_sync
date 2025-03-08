@@ -5,7 +5,7 @@ use thread_pool::ThreadPool;
 
 use crate::{file_reader::FileReader, list_to_path, FileEntry};
 
-enum ReaderState {
+pub enum ReaderState {
     Def(FileEntry),
     Reader(Arc<FileReader>),
     Closed
@@ -17,23 +17,29 @@ pub enum FileReaderMessage {
 }
 
 pub struct FileReaderManager {
-    root: PathBuf
+    root: PathBuf,
+    channel: Sender<FileReaderMessage>
 }
 
 impl FileReaderManager {
     pub fn new(
         root: PathBuf,
-        files: &Vec<FileEntry>,
-        pool: ThreadPool) -> Self {
+        files: &Vec<FileEntry>) -> Self {
 
         let (message_sender, receiver) = channel();
+        let messege_sender_clone = message_sender.clone();
 
         let mut files: Vec<ReaderState> = files.iter().map(|f| {
             ReaderState::Def(f.clone())
         }).collect();
 
+        let pool = ThreadPool::new(5);
         let pool_clone = pool.clone();
+
+        let root_clone = root.clone();
         pool.execute(move || -> Result<(), GenericError> {
+            let root = root_clone;
+            let message_sender = messege_sender_clone;
 
             loop {
                 let mess: FileReaderMessage = receiver.recv()?;
@@ -52,9 +58,11 @@ impl FileReaderManager {
                             ReaderState::Def(f) => {
                                 let message_sender = message_sender.clone();
                                 let file = list_to_path(&f.partial_path);
+                                let file = root.join(file);
                                 let reader = FileReader::new(id, file, &pool_clone, message_sender);
                                 let reader = Arc::new(reader);
-                                files[id as usize] = ReaderState::Reader(reader);
+                                files[id as usize] = ReaderState::Reader(Arc::clone(&reader));
+                                sender.send(Some(reader))?;
                             }
                         }
                     }
@@ -66,6 +74,17 @@ impl FileReaderManager {
             }
         });
 
-        FileReaderManager{ root }
+        FileReaderManager{
+            root,
+            channel: message_sender
+        }
+    }
+
+    pub fn get_reader(&self, id: u32) -> Option<Arc<FileReader>> {
+        dbg!(id);
+        let (sender, receiver) = channel();
+        self.channel.send(FileReaderMessage::GetReader(id, sender)).unwrap(); 
+        receiver.recv().unwrap()
     }
 }
+

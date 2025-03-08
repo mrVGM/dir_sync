@@ -15,3 +15,8 @@ pub struct MessageFiles {
     pub files: Vec<FileEntry>
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct DownloadFile {
+    pub id: u32
+}
+

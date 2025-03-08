@@ -26,6 +26,7 @@ impl FileReader {
 
         pool.execute(move || -> Result<(), GenericError> {
             let chunk_sender = chunk_sender_clone;
+
             let mut file = std::fs::File::open(&file)?;
             let meta = file.metadata()?;
             let size = meta.len();

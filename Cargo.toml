@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/ds",
+    "crates/errors",
+    "crates/files",
+    "crates/net",
+    "crates/thread_pool"
+]
+

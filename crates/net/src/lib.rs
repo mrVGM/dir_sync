@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::{Read, Write}, net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream}, rc::Rc};
+use std::{io::{Read, Write}, net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream}};
 
 use errors::{new_custom_error, GenericError};
 use serde_json::Value;
@@ -13,7 +13,7 @@ struct TcpMessage {
     payload: TcpMessagePayload
 }
 
-pub trait TcpEndpoint {
+pub trait TcpEndpoint : Send + 'static {
     fn get_connection(&mut self) -> Result<TcpStream, GenericError>;
     fn wait_for_connection(&mut self) -> Result<TcpStream, GenericError>;
 }

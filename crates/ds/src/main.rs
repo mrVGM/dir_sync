@@ -1,37 +1,11 @@
-use std::{io::Write, net::{IpAddr, Ipv4Addr, SocketAddr}, path::{self, PathBuf, StripPrefixError}, str::FromStr};
+use std::{net::{IpAddr, Ipv4Addr, SocketAddr}, path::PathBuf, str::FromStr};
 
-use errors::{new_custom_error, GenericError};
-use net::{new_client_endpoint, new_server_endpoint, JSONReader, TcpEndpoint};
+use errors::GenericError;
+use net::{new_client_endpoint, new_server_endpoint};
 
 mod file_sender;
 mod file_receiver;
 mod messages;
-
-fn main1() -> Result<(), GenericError> {
-    let path = "C:\\Users\\Vasil\\Desktop\\dir_sync\\crates";
-    let path = std::path::PathBuf::from_str(path)?;
-
-    let l = files::path_to_list(&path);
-    dbg!(&l);
-
-    let p = files::list_to_path(&l);
-    dbg!(&p);
-
-    let path = path.canonicalize()?;
-    // let path = path.to_str().ok_or(new_custom_error("fsdfsd"))?;
-    // let path = PathBuf::from_str(path);
-
-    let files = files::get_files_in_dir(&path)?;
-    let files: Vec<String> = files.iter().map(|x| {
-        let val = serde_json::to_value(x).unwrap();
-        val.to_string()
-    }).collect();
-
-    // println!("{}", files[0]);
-    // println!("{:?}", files);
-
-    Ok(())
-}
 
 fn main() -> Result<(), GenericError> {
     let args: Vec<String> = std::env::args().collect();

@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::{mpsc::{channel, Receiver, Sender}, Arc}};
+use std::{path::PathBuf, sync::{mpsc::{channel, Sender}, Arc}};
 
 use errors::GenericError;
 use thread_pool::ThreadPool;
@@ -17,7 +17,6 @@ pub enum FileReaderMessage {
 }
 
 pub struct FileReaderManager {
-    root: PathBuf,
     channel: Sender<FileReaderMessage>
 }
 
@@ -75,16 +74,15 @@ impl FileReaderManager {
         });
 
         FileReaderManager{
-            root,
             channel: message_sender
         }
     }
 
     pub fn get_reader(&self, id: u32) -> Option<Arc<FileReader>> {
-        dbg!(id);
         let (sender, receiver) = channel();
         self.channel.send(FileReaderMessage::GetReader(id, sender)).unwrap(); 
-        receiver.recv().unwrap()
+        let res = receiver.recv().unwrap();
+        res
     }
 }
 

@@ -3,8 +3,8 @@ use std::{convert::Infallible, fmt::Display, path::StripPrefixError, sync::mpsc:
 pub trait Error: std::error::Error + Send {}
 
 #[derive(Debug)]
-pub enum GenericError{
-    GenericError(Box<dyn Error>),
+pub enum GenericError {
+    GenericError(Box<dyn std::error::Error + Send + 'static>),
     CustomError(String)
 }
 
@@ -21,7 +21,17 @@ impl Display for GenericError {
     }
 }
 
-impl std::error::Error for GenericError { }
+impl std::error::Error for GenericError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            GenericError::GenericError(boxed_err) => {
+                let err = boxed_err.as_ref();
+                Some(err)
+            }
+            _ => None
+        }
+    }
+}
 
 impl<T: Error + 'static> From<T> for GenericError {
     fn from(value: T) -> Self {

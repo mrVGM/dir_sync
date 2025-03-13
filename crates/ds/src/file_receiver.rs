@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::Write, path::PathBuf, rc::Rc};
+use std::io::Write;
 
 use errors::GenericError;
 use net::{JSONReader, TcpEndpoint};
@@ -22,13 +22,25 @@ pub fn receive_files(
 
     dbg!(&files);
 
-    let mut stream = tcp_endpoint.get_connection()?;
-    let message = DownloadFile{ 
-        id: 0
-    };
-    let json_message = serde_json::to_string(&message)?;
+    for (i, f) in files.files.iter().enumerate() {
+        if f.size == 0 {
+            continue;
+        }
 
-    stream.write(json_message.as_bytes())?;
+        let message = DownloadFile{ 
+            id: i as u32
+        };
+        let json_message = serde_json::to_string(&message)?;
+
+        {
+            let mut stream = tcp_endpoint.get_connection()?;
+            stream.write(json_message.as_bytes())?;
+        }
+        {
+            let mut stream = tcp_endpoint.get_connection()?;
+            stream.write(json_message.as_bytes())?;
+        }
+    }
 
     Ok(())
 }

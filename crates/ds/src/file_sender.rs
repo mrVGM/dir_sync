@@ -1,7 +1,7 @@
 use std::{io::Write, path::PathBuf, sync::mpsc::channel};
 
 use errors::{new_custom_error, GenericError};
-use files::{FileEntry, FileReaderManager};
+use files::FileReaderManager;
 use net::{JSONReader, TcpEndpoint};
 use thread_pool::ThreadPool;
 
@@ -22,7 +22,7 @@ pub fn send_files(
     let files = files::get_files_in_dir(&dir)?;
 
     enum FileStreamState {
-        NotStarted(FileEntry),
+        NotStarted,
         Working(u8),
         Finished
     }
@@ -31,14 +31,14 @@ pub fn send_files(
         .map(|f| {
             match f.size {
                 0 => FileStreamState::Finished,
-                _ => FileStreamState::NotStarted(f.clone())
+                _ => FileStreamState::NotStarted
             }
         }).collect();
 
     let mut files_to_send = file_streams.iter()
         .filter(|f| {
             match f {
-                FileStreamState::NotStarted(_) => true,
+                FileStreamState::NotStarted => true,
                 _ => false
             }
         }).count();
@@ -62,10 +62,12 @@ pub fn send_files(
         Finish(u32)
     }
     let (fs_sender, fs_receiver) = channel();
+    let fs_sender_clone = fs_sender.clone();
 
     let pool = ThreadPool::new(9);
     let pool_clone = pool.clone();
     pool.execute(move || -> Result<(), GenericError> {
+        let fs_sender = fs_sender_clone;
         let pool = pool_clone;
         loop {
             let stream = tcp_endpoint.get_connection()?;
@@ -99,12 +101,13 @@ pub fn send_files(
 
     loop {
         let mess = fs_receiver.recv()?;
+        dbg!(&files_to_send);
 
         match mess {
             FileStreamMessage::Start(id) => {
                 let stream_state = &mut file_streams[id as usize];
                 match stream_state {
-                    FileStreamState::NotStarted(_) => {
+                    FileStreamState::NotStarted => {
                         *stream_state = FileStreamState::Working(1);
                     }
                     FileStreamState::Working(x) => {
@@ -119,7 +122,7 @@ pub fn send_files(
             FileStreamMessage::Finish(id) => {
                 let stream_state = &mut file_streams[id as usize];
                 match stream_state {
-                    FileStreamState::NotStarted(_) => {
+                    FileStreamState::NotStarted => {
                         return Err(new_custom_error("file stream not even started"));
                     }
                     FileStreamState::Working(1) => {

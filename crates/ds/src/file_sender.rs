@@ -21,6 +21,7 @@ pub fn send_files(
     let message: DSMessage = serde_json::from_value(json)?;
     let files = files::get_files_in_dir(&dir)?;
 
+    #[derive(Debug)]
     enum FileStreamState {
         NotStarted,
         Working(u8),
@@ -57,6 +58,7 @@ pub fn send_files(
     }
 
 
+    #[derive(Debug)]
     enum FileStreamMessage {
         Start(u32),
         Finish(u32)
@@ -70,7 +72,7 @@ pub fn send_files(
         let fs_sender = fs_sender_clone;
         let pool = pool_clone;
         loop {
-            let stream = tcp_endpoint.get_connection()?;
+            let mut stream = tcp_endpoint.get_connection()?;
 
             let mut reader = { 
                 let stream_clone = stream.try_clone()?;
@@ -88,8 +90,15 @@ pub fn send_files(
                     sender.send(FileStreamMessage::Start(id))?;
                     loop {
                         let chunk = reader.get_chunk();
-                        if let None = chunk {
-                            break;
+
+                        match chunk {
+                            Some(chunk) => {
+                                let buf = chunk.to_bytes();
+                                stream.write(&buf)?;
+                            }
+                            None => {
+                                break;
+                            }
                         }
                     }
                     sender.send(FileStreamMessage::Finish(id))?;
@@ -101,7 +110,6 @@ pub fn send_files(
 
     loop {
         let mess = fs_receiver.recv()?;
-        dbg!(&files_to_send);
 
         match mess {
             FileStreamMessage::Start(id) => {
@@ -111,11 +119,9 @@ pub fn send_files(
                         *stream_state = FileStreamState::Working(1);
                     }
                     FileStreamState::Working(x) => {
-                        *stream_state = FileStreamState::Working(*x + 1);
+                        *x += 1;
                     }
-                    FileStreamState::Finished => {
-                        return Err(new_custom_error("file stream already finished"));
-                    }
+                    FileStreamState::Finished => { }
                 }
             }
 
@@ -130,11 +136,9 @@ pub fn send_files(
                         *stream_state = FileStreamState::Finished;
                     }
                     FileStreamState::Working(x) if *x > 1 => {
-                        *stream_state = FileStreamState::Working(*x - 1);
+                        *x -= 1;
                     }
-                    _ => {
-                        return Err(new_custom_error("bad state of file stream"));
-                    }
+                    _ => { }
                 }
             }
         }

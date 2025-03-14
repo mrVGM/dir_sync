@@ -1,6 +1,7 @@
 static FILE_CHUNK_SIZE: usize = 8 * 1024 * 1024;
-pub static FILE_CHINK_MAX_SIZE: usize = 2 * size_of::<u64>() + FILE_CHUNK_SIZE;
+pub static FILE_CHUNK_MAX_SIZE: usize = 2 * size_of::<u64>() + FILE_CHUNK_SIZE;
 
+#[derive(Debug)]
 pub struct FileChunk {
     pub offset: u64,
     pub size: u64,
@@ -8,7 +9,7 @@ pub struct FileChunk {
 }
 
 impl FileChunk {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let mut data = Vec::with_capacity(FILE_CHUNK_SIZE);
         data.resize(FILE_CHUNK_SIZE, 0);
 

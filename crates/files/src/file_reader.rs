@@ -2,7 +2,7 @@ use std::{io::Read, sync::{mpsc::{channel, Receiver, Sender}, Mutex}};
 
 use errors::GenericError;
 
-use crate::{file_chunk::{FileChunk, FILE_CHINK_MAX_SIZE}, file_reader_manager::FileReaderMessage};
+use crate::{file_chunk::{FileChunk, FILE_CHUNK_MAX_SIZE}, file_reader_manager::FileReaderMessage};
 
 pub struct FileReader {
     pub chunk_receiver: Mutex<Receiver<Option<FileChunk>>>,
@@ -32,12 +32,16 @@ impl FileReader {
 
             let mut read = 0;
 
-            let mut buf: Vec<u8> = vec![0; FILE_CHINK_MAX_SIZE];
+            let mut buf: Vec<u8> = vec![0; FILE_CHUNK_MAX_SIZE];
             while read < size {
                 slot_receiver.recv()?;
 
-                file.read(&mut buf)?;
-                let chunk = FileChunk::from_bytes(&buf);
+                let data = &mut buf[2 * size_of::<u64>()..];
+                let bytes_read = file.read(data)?;
+                let mut chunk = FileChunk::from_bytes(&buf);
+                chunk.offset = read;
+                chunk.size = bytes_read as u64;
+
                 read += chunk.size;
                 chunk_sender.send(Some(chunk))?;
             }

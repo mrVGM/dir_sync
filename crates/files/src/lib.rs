@@ -10,3 +10,4 @@ pub use dir_scanner::list_to_path;
 
 pub use file_reader_manager::FileReaderManager;
 pub use file_reader_manager::ReaderState;
+pub use file_chunk::{FileChunk, FILE_CHUNK_MAX_SIZE};

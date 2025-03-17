@@ -7,6 +7,7 @@ use thread_pool::ThreadPool;
 mod file_sender;
 mod file_receiver;
 mod messages;
+mod logger;
 
 fn main() -> Result<(), GenericError> {
     let args: Vec<String> = std::env::args().collect();

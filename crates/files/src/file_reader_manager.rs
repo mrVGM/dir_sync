@@ -57,8 +57,9 @@ impl FileReaderManager {
                             ReaderState::Def(f) => {
                                 let message_sender = message_sender.clone();
                                 let file = list_to_path(&f.partial_path);
+                                let name = file.to_str().unwrap().to_owned();
                                 let file = root.join(file);
-                                let reader = FileReader::new(id, file, &pool_clone, message_sender);
+                                let reader = FileReader::new(id, name, file, &pool_clone, message_sender);
                                 let reader = Arc::new(reader);
                                 files[id as usize] = ReaderState::Reader(Arc::clone(&reader));
                                 sender.send(Some(reader))?;

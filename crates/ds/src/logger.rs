@@ -31,7 +31,7 @@ enum FileState {
     },
 }
 
-fn log_progress(receiver: Receiver<LoggerMessage>)
+pub fn log_progress(receiver: Receiver<LoggerMessage>)
     -> Result<(), GenericError> {
 
     let mut files: Vec<FileState> = vec![];
@@ -60,12 +60,15 @@ fn log_progress(receiver: Receiver<LoggerMessage>)
                 break;
             }
             LoggerMessage::StartFile { id, name, size } => {
-                files.push(FileState::FileProgress {
-                    id,
-                    name,
-                    size,
-                    data: 0
-                });
+                let file = find_file(id, &mut files);
+                if let Err(_) = file {
+                    files.push(FileState::FileProgress {
+                        id,
+                        name,
+                        size,
+                        data: 0
+                    });
+                }
             }
             LoggerMessage::AddData { id, data: add_data } => {
                 let file_state = find_file(id, &mut files)?;
@@ -87,9 +90,7 @@ fn log_progress(receiver: Receiver<LoggerMessage>)
                             name: name.to_owned()
                         }
                     }
-                    _ => {
-                        return Err(new_custom_error("file state corrupted"));
-                    }
+                    _ => { }
                 }
             }
             LoggerMessage::NoMessage => { }
@@ -98,7 +99,7 @@ fn log_progress(receiver: Receiver<LoggerMessage>)
         for f in files.iter() {
             match f {
                 FileState::ClosedFile { name } => {
-                    println!("File {}", name);
+                    println!("{} - ready!", name);
                 }
                 _ => {}
             }

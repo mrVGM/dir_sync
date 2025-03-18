@@ -5,6 +5,7 @@ use errors::GenericError;
 use crate::{file_chunk::{FileChunk, FILE_CHUNK_MAX_SIZE}, file_reader_manager::FileReaderMessage};
 
 pub struct FileReader {
+    pub name: String,
     pub chunk_receiver: Mutex<Receiver<Option<FileChunk>>>,
     chunk_sender: Sender<Option<FileChunk>>,
     slot_sender: Sender<()>
@@ -15,6 +16,7 @@ static MAX_CHUNKS: u8 = 10;
 impl FileReader {
     pub fn new(
         id: u32,
+        name: String,
         file: std::path::PathBuf,
         pool: &thread_pool::ThreadPool,
         finish_channel: Sender<FileReaderMessage>) -> FileReader {
@@ -57,6 +59,7 @@ impl FileReader {
         }
 
         FileReader {
+            name,
             chunk_receiver: Mutex::new(chunk_receiver),
             chunk_sender,
             slot_sender

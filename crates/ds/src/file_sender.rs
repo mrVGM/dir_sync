@@ -1,15 +1,16 @@
-use std::{io::Write, path::PathBuf, sync::mpsc::channel};
+use std::{io::Write, path::PathBuf, sync::mpsc::{channel, Sender}};
 
 use errors::{new_custom_error, GenericError};
 use files::FileReaderManager;
 use net::{JSONReader, TcpEndpoint};
 use thread_pool::ThreadPool;
 
-use crate::messages::{DSMessage, DSMessageType, DownloadFile, MessageFiles};
+use crate::{logger::LoggerMessage, messages::{DSMessage, DSMessageType, DownloadFile, MessageFiles}};
 
 pub fn send_files(
     mut tcp_endpoint: impl TcpEndpoint,
-    dir: PathBuf) -> Result<(), GenericError> {
+    dir: PathBuf,
+    logger: Sender<LoggerMessage>) -> Result<(), GenericError> {
 
     let mut main_stream = tcp_endpoint.wait_for_connection()?;
     let mut reader = {
@@ -68,9 +69,13 @@ pub fn send_files(
 
     let pool = ThreadPool::new(9);
     let pool_clone = pool.clone();
+
+    let logger_clone = logger.clone();
     pool.execute(move || -> Result<(), GenericError> {
         let fs_sender = fs_sender_clone;
         let pool = pool_clone;
+        let logger = logger_clone;
+
         loop {
             let mut stream = tcp_endpoint.get_connection()?;
 
@@ -85,9 +90,15 @@ pub fn send_files(
             let reader = manager.get_reader(id);
 
             let sender = fs_sender.clone();
+            let logger = logger.clone();
             if let Some(reader) = reader {
                 pool.execute(move || -> Result<(), GenericError> {
                     sender.send(FileStreamMessage::Start(id))?;
+                    logger.send(LoggerMessage::StartFile {
+                        id: id,
+                        name: reader.name.to_owned(), 
+                        size: 0
+                    })?;
                     loop {
                         let chunk = reader.get_chunk();
 
@@ -95,6 +106,10 @@ pub fn send_files(
                             Some(chunk) => {
                                 let buf = chunk.to_bytes();
                                 stream.write(&buf)?;
+                                logger.send(LoggerMessage::AddData { 
+                                    id: id,
+                                    data: chunk.size
+                                })?;
                             }
                             None => {
                                 break;
@@ -134,6 +149,7 @@ pub fn send_files(
                     FileStreamState::Working(1) => {
                         files_to_send -= 1;
                         *stream_state = FileStreamState::Finished;
+                        logger.send(LoggerMessage::FinishFile { id: id })?;
                     }
                     FileStreamState::Working(x) if *x > 1 => {
                         *x -= 1;

@@ -1,11 +1,11 @@
-use std::{io::{Read, Write}, net::TcpStream, sync::mpsc::channel};
+use std::{io::{Read, Write}, net::TcpStream, sync::mpsc::{channel, Sender}};
 
 use errors::{new_custom_error, GenericError};
 use files::{FileChunk, FILE_CHUNK_MAX_SIZE};
 use net::{JSONReader, TcpEndpoint};
 use thread_pool::ThreadPool;
 
-use crate::messages::{DSMessage, DSMessageType, DownloadFile, MessageFiles};
+use crate::{logger::LoggerMessage, messages::{DSMessage, DSMessageType, DownloadFile, MessageFiles}};
 
 fn receive_chunk(stream: &mut TcpStream) -> Option<FileChunk> {
     let mut buf: Vec<u8> = Vec::with_capacity(FILE_CHUNK_MAX_SIZE);
@@ -27,7 +27,8 @@ fn receive_chunk(stream: &mut TcpStream) -> Option<FileChunk> {
 }
 
 pub fn receive_files(
-    mut tcp_endpoint: impl TcpEndpoint) -> Result<(), GenericError> {
+    mut tcp_endpoint: impl TcpEndpoint,
+    logger: Sender<LoggerMessage>) -> Result<(), GenericError> {
 
     let mut stream = tcp_endpoint.get_connection()?;
     let message = DSMessage {
@@ -80,9 +81,11 @@ pub fn receive_files(
 
     let pool = ThreadPool::new(9);
     let pool_clone = pool.clone();
+    let logger_clone = logger.clone();
 
     pool.execute(move || -> Result<(), GenericError> {
         let pool = pool_clone;
+        let logger = logger_clone;
 
         for (i, f) in files.files.iter().enumerate() {
             if f.size == 0 {
@@ -96,8 +99,16 @@ pub fn receive_files(
             for _ in 0..2 {
                 let fs_send = fs_send.clone();
                 let mut stream = tcp_endpoint.get_connection()?;
+                let logger = logger.clone();
+                let file_path = files::list_to_path(&f.partial_path);
+                let name = file_path.to_str().unwrap().to_owned();
                 pool.execute(move || -> Result<(), GenericError> {
                     fs_send.send(FileStreamMessage::Start(id))?;
+                    logger.send(LoggerMessage::StartFile {
+                        id: id,
+                        name: name,
+                        size: 0
+                    })?;
 
                     let download = DownloadFile {
                         id
@@ -111,7 +122,12 @@ pub fn receive_files(
                             None => {
                                 break;
                             }
-                            Some(_chunk) => { }
+                            Some(chunk) => {
+                                logger.send(LoggerMessage::AddData {
+                                    id: id,
+                                    data: chunk.size,
+                                })?;
+                            }
                         }
                     }
                     fs_send.send(FileStreamMessage::Finish(id))?;
@@ -152,6 +168,7 @@ pub fn receive_files(
                         *state = FileStreamState::Finished;
                         files_to_receive -= 1;
                         let _ = slot_send.send(());
+                        logger.send(LoggerMessage::FinishFile { id: id })?;
                     }
                     FileStreamState::Working(n) if *n > 1 => {
                         *n -= 1;

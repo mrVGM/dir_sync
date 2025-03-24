@@ -1,5 +1,6 @@
-use std::{net::{IpAddr, Ipv4Addr, SocketAddr}, path::PathBuf, str::FromStr, sync::mpsc::channel};
+use std::{io::{stdout, Write}, net::{IpAddr, Ipv4Addr, SocketAddr}, path::PathBuf, str::FromStr, sync::mpsc::channel};
 
+use crossterm::{cursor::{self, MoveUp}, Command, QueueableCommand};
 use errors::{new_custom_error, GenericError};
 use net::{new_client_endpoint, new_server_endpoint};
 use thread_pool::ThreadPool;

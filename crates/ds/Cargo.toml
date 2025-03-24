@@ -10,3 +10,4 @@ net = { path = "../net" }
 errors = { path = "../errors" }
 files = { path = "../files" }
 thread_pool = { path = "../thread_pool" }
+crossterm = "0.28.1"

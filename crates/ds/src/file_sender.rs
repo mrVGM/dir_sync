@@ -77,7 +77,7 @@ pub fn send_files(
         let logger = logger_clone;
 
         loop {
-            let mut stream = tcp_endpoint.get_connection()?;
+            let mut stream = tcp_endpoint.wait_for_connection()?;
 
             let mut reader = { 
                 let stream_clone = stream.try_clone()?;

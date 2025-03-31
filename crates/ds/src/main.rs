@@ -1,6 +1,6 @@
-use std::{io::{stdout, Write}, net::{IpAddr, Ipv4Addr, SocketAddr}, path::PathBuf, str::FromStr, sync::mpsc::channel};
+use std::{io::{stdout, Stdout, Write}, net::{IpAddr, Ipv4Addr, SocketAddr}, path::PathBuf, str::FromStr, sync::mpsc::channel};
 
-use crossterm::{cursor::{self, MoveUp}, Command, QueueableCommand};
+use crossterm::{cursor::{self, MoveLeft, MoveTo, MoveToColumn, MoveUp}, execute, QueueableCommand};
 use errors::{new_custom_error, GenericError};
 use net::{new_client_endpoint, new_server_endpoint};
 use thread_pool::ThreadPool;
@@ -9,6 +9,23 @@ mod file_sender;
 mod file_receiver;
 mod messages;
 mod logger;
+
+fn get_local_params() -> Result<String, GenericError> {
+    let cur_dir = std::env::current_dir()?;
+    let file = "settings.json";
+    let file_name = cur_dir.join(file);
+
+    let json = std::fs::read_to_string(file_name)?;
+    let json: serde_json::Value = serde_json::from_str(&json)?;
+
+    let json_object = json.as_object().ok_or(new_custom_error("not valid"))?;
+    let path = json_object.get("path")
+        .ok_or(new_custom_error("path not found"))?
+        .as_str()
+        .ok_or(new_custom_error("path not found"))?;
+
+    Ok(path.to_string())
+}
 
 fn main() -> Result<(), GenericError> {
     let args: Vec<String> = std::env::args().collect();
@@ -26,8 +43,13 @@ fn main() -> Result<(), GenericError> {
             "server" => {
                 let (server_end, addr) = new_server_endpoint(None)?;
                 println!("{:?}", addr);
-                let path = "C:\\Users\\Vasil\\Desktop\\dir_sync\\crates";
+
+                let path = match get_local_params() {
+                    Ok(path) => path,
+                    Err(_) => "C:\\Users\\Vasil\\Desktop\\dir_sync\\crates".into()
+                };
                 let dir = PathBuf::from_str(&path)?;
+                dbg!(&path);
                 file_sender::send_files(server_end, dir, logger_send)?;
             }
             "client" => {

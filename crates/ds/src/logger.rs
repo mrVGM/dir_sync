@@ -1,6 +1,6 @@
 use std::{fs::File, io::{stdout, Write}, sync::mpsc::Receiver};
 
-use crossterm::QueueableCommand;
+use crossterm::{cursor, execute, terminal, QueueableCommand};
 use errors::{new_custom_error, GenericError};
 
 pub enum LoggerMessage {
@@ -20,6 +20,7 @@ pub enum LoggerMessage {
     CloseLogger,
 }
 
+#[derive(Debug)]
 enum FileState {
     FileProgress {
         id: u32,
@@ -72,6 +73,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
 
     let mut temp_prints = vec![];
 
+    let mut stdout = stdout();
     loop {
         let message = receiver.recv()?;
         match message {
@@ -93,7 +95,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
                 let file_state = find_file(id, &mut files)?;
 
                 match file_state {
-                    FileState::FileProgress { id: _, name: _, size: _, data } => {
+                    FileState::FileProgress { id: _, name, size, data } => {
                         *data += add_data;
                     }
                     _ => {
@@ -115,27 +117,10 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
             LoggerMessage::NoMessage => { }
         }
 
-        let max_space = temp_prints.iter().max();
-        if let Some(max_space) = max_space {
-            let mut blank: String = "".into();
-            for _ in 0..*max_space {
-                blank.push(' ');
-            }
+        execute!(stdout, cursor::MoveUp(temp_prints.len() as u16))?;
+        execute!(stdout, terminal::Clear(terminal::ClearType::FromCursorDown))?;
 
-            for _ in temp_prints.iter() {
-                let up = crossterm::cursor::MoveUp(1);
-                let mut stdout = stdout();
-                stdout.queue(up)?;
-                stdout.flush()?;
-
-                print!("{}", blank);
-
-                let left = crossterm::cursor::MoveToColumn(0);
-                stdout.queue(left)?;
-                stdout.flush()?;
-            }
-            temp_prints.clear();
-        }
+        temp_prints.clear();
 
         let closed = files.iter()
             .filter(|x| {
@@ -154,14 +139,18 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
             }
         }
 
+        execute!(stdout, crossterm::terminal::DisableLineWrap)?;
+
         for f in files.iter() {
             if let FileState::FileProgress { id, name, size, data } = f {
+
                 let prog = *data as f32 / *size as f32;
                 let prog_str = progress_string(prog, name);
                 temp_prints.push(prog_str.len());
                 println!("{}", prog_str);
             }
         }
+        execute!(stdout, crossterm::terminal::EnableLineWrap)?;
 
         files = files.into_iter()
             .filter(|f| {

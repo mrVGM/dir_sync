@@ -23,12 +23,13 @@ impl FileChunk {
     pub fn to_bytes(&self) -> Vec<u8> {
         let u64_size = size_of::<u64>();
         let u8_size = size_of::<u8>();
-        let len = 2 * u64_size + (self.size as usize) * size_of::<u8>(); 
+        let data_len = (self.size as usize) * size_of::<u8>(); 
+        let len = 2 * u64_size + data_len;
         let mut res = Vec::with_capacity(len);
         res.resize(len, 0);
 
         {
-            let offset_bytes = &mut res[..u64_size];
+            let offset_bytes = &mut res[0..u64_size];
             let offset = self.offset.to_be_bytes();
             offset_bytes.copy_from_slice(&offset);
         }
@@ -41,7 +42,7 @@ impl FileChunk {
 
         {
             let data_bytes = &mut res[2 * u64_size..];
-            data_bytes.copy_from_slice(&self.data[..(self.size as usize) * u8_size]);
+            data_bytes.copy_from_slice(&self.data[..data_len]);
         }
 
         res
@@ -49,10 +50,11 @@ impl FileChunk {
 
     pub fn from_bytes(bytes: &[u8]) -> FileChunk {
         let u64_size = size_of::<u64>();
+        let u8_size = size_of::<u8>();
 
         let offset = {
             let mut offset_bytes: [u8; 8] = [0; 8];
-            offset_bytes.copy_from_slice(&bytes[..u64_size]);
+            offset_bytes.copy_from_slice(&bytes[0..u64_size]);
             u64::from_be_bytes(offset_bytes)
         };
 
@@ -63,7 +65,10 @@ impl FileChunk {
         };
 
         let mut data: Vec<u8> = vec![0; FILE_CHUNK_SIZE];
-        data.copy_from_slice(&bytes[2 * u64_size..]);
+        {
+            let tmp = &mut data[0..size as usize];
+            tmp.copy_from_slice(&bytes[2 * u64_size.. 2 * u64_size + size as usize * u8_size]);
+        }
 
         FileChunk {
             offset,

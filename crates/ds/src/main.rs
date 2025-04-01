@@ -9,7 +9,7 @@ mod file_receiver;
 mod messages;
 mod logger;
 
-fn get_local_params() -> Result<String, GenericError> {
+fn get_local_params() -> Result<(String, String), GenericError> {
     let cur_dir = std::env::current_dir()?;
     let file = "settings.json";
     let file_name = cur_dir.join(file);
@@ -22,8 +22,12 @@ fn get_local_params() -> Result<String, GenericError> {
         .ok_or(new_custom_error("path not found"))?
         .as_str()
         .ok_or(new_custom_error("path not found"))?;
+    let outpath = json_object.get("outpath")
+        .ok_or(new_custom_error("path not found"))?
+        .as_str()
+        .ok_or(new_custom_error("path not found"))?;
 
-    Ok(path.to_string())
+    Ok((path.to_string(), outpath.to_string()))
 }
 
 fn main() -> Result<(), GenericError> {
@@ -44,7 +48,7 @@ fn main() -> Result<(), GenericError> {
                 println!("{:?}", addr);
 
                 let path = match get_local_params() {
-                    Ok(path) => path,
+                    Ok((path, _)) => path,
                     Err(_) => "C:\\Users\\Vasil\\Desktop\\dir_sync\\crates".into()
                 };
                 let dir = PathBuf::from_str(&path)?;
@@ -62,7 +66,12 @@ fn main() -> Result<(), GenericError> {
                 let ip = IpAddr::V4(ip);
                 let addr = SocketAddr::new(ip, port);
                 let client_end = new_client_endpoint(addr)?;
-                file_receiver::receive_files(client_end, logger_send)?;
+                let path = match get_local_params() {
+                    Ok((_, path)) => path,
+                    Err(_) => "C:\\Users\\Vasil\\Desktop\\dir_sync\\crates".into()
+                };
+                let dir = PathBuf::from_str(&path)?;
+                file_receiver::receive_files(client_end, dir, logger_send)?;
             }
             _ => Err(errors::new_custom_error("CLI Error"))?
         }

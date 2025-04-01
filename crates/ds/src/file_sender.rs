@@ -97,7 +97,7 @@ pub fn send_files(
                     logger.send(LoggerMessage::StartFile {
                         id: id,
                         name: reader.name.to_owned(), 
-                        size: 0
+                        size: reader.size
                     })?;
                     loop {
                         let chunk = reader.get_chunk();

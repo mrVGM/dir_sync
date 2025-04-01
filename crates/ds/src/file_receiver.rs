@@ -1,4 +1,4 @@
-use std::{io::{Read, Write}, net::TcpStream, sync::{mpsc::{channel, Sender}, Arc}};
+use std::{io::{Read, Write}, net::TcpStream, path::PathBuf, sync::{mpsc::{channel, Sender}, Arc}};
 
 use common::FileStreamMessage;
 use errors::{new_custom_error, GenericError};
@@ -77,6 +77,7 @@ fn receive_chunk(stream: &mut TcpStream) ->
 
 pub fn receive_files(
     mut tcp_endpoint: impl TcpEndpoint,
+    root: PathBuf,
     logger: Sender<LoggerMessage>) -> Result<(), GenericError> {
 
     let mut stream = tcp_endpoint.get_connection()?;
@@ -127,6 +128,7 @@ pub fn receive_files(
     let pool_clone = pool.clone();
     let logger_clone = logger.clone();
 
+    let root = root.clone();
     pool.execute(move || -> Result<(), GenericError> {
         let pool = pool_clone;
         let logger = logger_clone;
@@ -144,6 +146,7 @@ pub fn receive_files(
             fs_send.send(FileStreamMessage::Start(id))?;
 
             let file_path = files::list_to_path(&f.partial_path);
+            let file_path = root.join(file_path);
             let writer = FileWriter::new(
                 id,
                 f.size,
@@ -151,6 +154,7 @@ pub fn receive_files(
                 fs_send.clone(),
                 writer_pool.clone())?;
             let writer = Arc::new(writer);
+            let file_size = f.size;
 
             for _ in 0..2 {
                 let mut stream = tcp_endpoint.get_connection()?;
@@ -162,7 +166,7 @@ pub fn receive_files(
                     logger.send(LoggerMessage::StartFile {
                         id: id,
                         name: name,
-                        size: 0
+                        size: file_size
                     })?;
 
                     let download = DownloadFile {

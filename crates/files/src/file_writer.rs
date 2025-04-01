@@ -24,7 +24,7 @@ impl FileWriter {
             std::fs::create_dir_all(parent)?;
         }
 
-        // let mut writer = std::fs::File::create(path)?;
+        let mut writer = std::fs::File::create(path)?;
 
         let (chunk_sender, chunk_receiver) = channel::<FileChunk>();
         pool.execute(move || -> Result<(), GenericError> {
@@ -53,7 +53,7 @@ impl FileWriter {
                     }
 
                     let front = received.remove(0);
-                    // writer.write(&front.data)?;
+                    writer.write(&front.data[..front.size as usize])?;
                     written += front.size;
                 }
             }

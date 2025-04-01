@@ -7,6 +7,7 @@ use crate::{file_chunk::{FileChunk, FILE_CHUNK_MAX_SIZE}, file_reader_manager::F
 pub struct FileReader {
     pub name: String,
     pub chunk_receiver: Mutex<Receiver<Option<FileChunk>>>,
+    pub size: u64,
     chunk_sender: Sender<Option<FileChunk>>,
     slot_sender: Sender<()>
 }
@@ -18,6 +19,7 @@ impl FileReader {
         id: u32,
         name: String,
         file: std::path::PathBuf,
+        size: u64,
         pool: &thread_pool::ThreadPool,
         finish_channel: Sender<FileReaderMessage>) -> FileReader {
         let (slot_sender, slot_receiver) = channel::<()>();
@@ -61,6 +63,7 @@ impl FileReader {
         FileReader {
             name,
             chunk_receiver: Mutex::new(chunk_receiver),
+            size,
             chunk_sender,
             slot_sender
         }

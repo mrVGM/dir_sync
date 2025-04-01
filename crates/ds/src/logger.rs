@@ -30,12 +30,11 @@ enum FileState {
     ClosedFile {
         name: String
     },
-    ReportedFile {
-        name: String
-    }
+    ReportedFile
 }
 
-pub fn progress_string(progress: f32, name: &str) -> String {
+pub fn progress_string(progress: (u64, u64), name: &str) -> String {
+    let progress = progress.0 as f32 / progress.1 as f32;
     let mut bar: String = "".into();
     let len = 15;
     for i in 0..len {
@@ -55,8 +54,6 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
     -> Result<(), GenericError> {
 
     let mut files = HashMap::<u32, FileState>::new();
-
-    // let mut files: Vec<FileState> = vec![];
 
     fn find_file(file_id: u32, files: &mut HashMap<u32, FileState>) -> Option<&mut FileState> {
         let record = files.get_mut(&file_id);
@@ -127,9 +124,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
             match f {
                 FileState::ClosedFile { name } => {
                     println!("{} - ready!", &name);
-                    *f = FileState::ReportedFile {
-                        name: name.to_owned()
-                    };
+                    *f = FileState::ReportedFile;
                 }
                 _ => {}
             }
@@ -140,7 +135,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
         for f in files.values() {
             if let FileState::FileProgress { name, size, data } = f {
                 let prog = *data as f32 / *size as f32;
-                let prog_str = progress_string(prog, name);
+                let prog_str = progress_string((*data, *size), name);
                 temp_prints.push(prog_str.len());
                 println!("{}", prog_str);
             }

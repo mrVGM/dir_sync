@@ -69,10 +69,7 @@ impl FileWriter {
     }
 
     pub fn push_chunk(&self, chunk: FileChunk) -> Result<(), GenericError> {
-        let res = self.chunk_sender.send(chunk);
-        if let Err(_) = res {
-            return Err(new_custom_error("the error"));
-        }
+        let res = self.chunk_sender.send(chunk)?;
         Ok(())
     }
 }

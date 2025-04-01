@@ -1,5 +1,6 @@
 use std::{io::{Read, Write}, net::TcpStream, sync::mpsc::{channel, Sender}};
 
+use common::FileStreamMessage;
 use errors::{new_custom_error, GenericError};
 use files::{FileChunk, FILE_CHUNK_MAX_SIZE};
 use net::{JSONReader, TcpEndpoint};
@@ -66,11 +67,6 @@ pub fn receive_files(
                 _ => false
             }
         }).count();
-
-    enum FileStreamMessage {
-        Start(u32),
-        Finish(u32)
-    }
 
     let (slot_send, slot_receive) = channel();
     for _ in 0..4 {

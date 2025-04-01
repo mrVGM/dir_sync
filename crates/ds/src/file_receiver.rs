@@ -1,29 +1,77 @@
-use std::{io::{Read, Write}, net::TcpStream, sync::mpsc::{channel, Sender}};
+use std::{io::{Read, Write}, net::TcpStream, sync::{mpsc::{channel, Sender}, Arc}};
 
 use common::FileStreamMessage;
 use errors::{new_custom_error, GenericError};
-use files::{FileChunk, FILE_CHUNK_MAX_SIZE};
+use files::{FileChunk, FileWriter, FILE_CHUNK_MAX_SIZE};
 use net::{JSONReader, TcpEndpoint};
 use thread_pool::ThreadPool;
 
 use crate::{logger::LoggerMessage, messages::{DSMessage, DSMessageType, DownloadFile, MessageFiles}};
 
-fn receive_chunk(stream: &mut TcpStream) -> Option<FileChunk> {
-    let mut buf: Vec<u8> = Vec::with_capacity(FILE_CHUNK_MAX_SIZE);
-    buf.resize(FILE_CHUNK_MAX_SIZE, 0);
-    let read = stream.read(&mut buf[0..]);
+enum ReadResult {
+    StreamClosed,
+    PartiallyRead,
+    FullyRead,
+}
 
-    match read {
-        Ok(read) => {
-            match read {
-                0 => None,
-                _ => {
-                    let chunk = FileChunk::from_bytes(&buf);
-                    Some(chunk)
+fn read_bytes(stream: &mut TcpStream, buf: &mut [u8]) -> ReadResult {
+    let mut read = 0;
+
+    while read < buf.len() {
+        let bytes = stream.read(&mut buf[read..]);
+        match bytes {
+            Ok(x) if x > 0 => {
+                read += x;
+            }
+            _ => {
+                if read == 0 {
+                    return ReadResult::StreamClosed;
+                }
+                else {
+                    return ReadResult::PartiallyRead;
                 }
             }
         }
-        Err(_) => None
+    }
+    
+    ReadResult::FullyRead
+}
+
+fn receive_chunk(stream: &mut TcpStream) ->
+    Result<Option<FileChunk>, GenericError> {
+
+    let mut buf: Vec<u8> = Vec::with_capacity(FILE_CHUNK_MAX_SIZE);
+    buf.resize(FILE_CHUNK_MAX_SIZE, 0);
+
+    {
+        let meta_data = &mut buf[..2 * size_of::<u64>()];
+        let read = read_bytes(stream, meta_data);
+        match read {
+            ReadResult::StreamClosed => {
+                return Ok(None);
+            }
+            ReadResult::PartiallyRead => {
+                return Err(new_custom_error("stream error"));
+            } 
+            _ => { }
+        }
+    }
+    let mut data_size = [0; size_of::<u64>()];
+    data_size.copy_from_slice(&buf[size_of::<u64>()..2 * size_of::<u64>()]);
+    let data_size = u64::from_be_bytes(data_size);
+
+    let res = {
+        let data_range = 2 * size_of::<u64>()..2 * size_of::<u64>() + data_size as usize;
+        read_bytes(stream, &mut buf[data_range])
+    };
+    match res {
+        ReadResult::FullyRead => {
+            let chunk = FileChunk::from_bytes(&buf);
+            Ok(Some(chunk))
+        }
+        _ => {
+            Err(new_custom_error("stream error"))
+        }
     }
 }
 
@@ -47,7 +95,7 @@ pub fn receive_files(
 
     enum FileStreamState {
         NotStarted,
-        Working(u8),
+        Working,
         Finished
     }
 
@@ -83,6 +131,8 @@ pub fn receive_files(
         let pool = pool_clone;
         let logger = logger_clone;
 
+        let writer_pool = ThreadPool::new(4);
+
         for (i, f) in files.files.iter().enumerate() {
             if f.size == 0 {
                 continue;
@@ -91,15 +141,24 @@ pub fn receive_files(
             let id = i as u32;
 
             slot_receive.recv()?;
+            fs_send.send(FileStreamMessage::Start(id))?;
+
+            let file_path = files::list_to_path(&f.partial_path);
+            let writer = FileWriter::new(
+                id,
+                f.size,
+                &file_path,
+                fs_send.clone(),
+                writer_pool.clone())?;
+            let writer = Arc::new(writer);
 
             for _ in 0..2 {
-                let fs_send = fs_send.clone();
                 let mut stream = tcp_endpoint.get_connection()?;
                 let logger = logger.clone();
-                let file_path = files::list_to_path(&f.partial_path);
                 let name = file_path.to_str().unwrap().to_owned();
+
+                let writer = Arc::clone(&writer);
                 pool.execute(move || -> Result<(), GenericError> {
-                    fs_send.send(FileStreamMessage::Start(id))?;
                     logger.send(LoggerMessage::StartFile {
                         id: id,
                         name: name,
@@ -113,20 +172,21 @@ pub fn receive_files(
                     stream.write(download.as_bytes())?;
 
                     loop {
-                        let chunk = receive_chunk(&mut stream);
+                        let chunk = receive_chunk(&mut stream)?;
                         match chunk {
                             None => {
                                 break;
                             }
                             Some(chunk) => {
+                                let size = chunk.size;
                                 logger.send(LoggerMessage::AddData {
                                     id: id,
-                                    data: chunk.size,
+                                    data: size,
                                 })?;
+                                writer.push_chunk(chunk)?;
                             }
                         }
                     }
-                    fs_send.send(FileStreamMessage::Finish(id))?;
 
                     Ok(())
                 });
@@ -144,13 +204,10 @@ pub fn receive_files(
                 let state = &mut file_streams[id as usize];
                 match state {
                     FileStreamState::NotStarted => {
-                        *state = FileStreamState::Working(1);
+                        *state = FileStreamState::Working;
                     }
-                    FileStreamState::Working(x) => {
-                        *x += 1;
-                    }
-                    FileStreamState::Finished => {
-                        return Err(new_custom_error("download process already finished"));
+                    _ => {
+                        return Err(new_custom_error("download process already started"));
                     } 
                 }
             }
@@ -160,14 +217,11 @@ pub fn receive_files(
                     FileStreamState::NotStarted => {
                         return Err(new_custom_error("download process not started"));
                     }
-                    FileStreamState::Working(1) => {
+                    FileStreamState::Working => {
                         *state = FileStreamState::Finished;
                         files_to_receive -= 1;
                         let _ = slot_send.send(());
                         logger.send(LoggerMessage::FinishFile { id: id })?;
-                    }
-                    FileStreamState::Working(n) if *n > 1 => {
-                        *n -= 1;
                     }
                     _ => {
                         return Err(new_custom_error("download process already finished"));

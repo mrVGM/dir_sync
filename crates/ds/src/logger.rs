@@ -1,6 +1,6 @@
-use std::{fs::File, io::{stdout, Write}, sync::mpsc::Receiver};
+use std::{collections::HashMap, io::stdout, sync::mpsc::Receiver};
 
-use crossterm::{cursor, execute, terminal, QueueableCommand};
+use crossterm::{cursor, execute, terminal};
 use errors::{new_custom_error, GenericError};
 
 pub enum LoggerMessage {
@@ -23,7 +23,6 @@ pub enum LoggerMessage {
 #[derive(Debug)]
 enum FileState {
     FileProgress {
-        id: u32,
         name: String,
         size: u64,
         data: u64
@@ -31,6 +30,9 @@ enum FileState {
     ClosedFile {
         name: String
     },
+    ReportedFile {
+        name: String
+    }
 }
 
 pub fn progress_string(progress: f32, name: &str) -> String {
@@ -52,23 +54,13 @@ pub fn progress_string(progress: f32, name: &str) -> String {
 pub fn log_progress(receiver: Receiver<LoggerMessage>)
     -> Result<(), GenericError> {
 
-    let mut files: Vec<FileState> = vec![];
+    let mut files = HashMap::<u32, FileState>::new();
 
-    fn find_file(file_id: u32, files: &mut Vec<FileState>) -> Result<&mut FileState, GenericError> {
-        for f in files.iter_mut() {
-            match f {
-                FileState::FileProgress { id, name: _, size: _, data: _ } => {
-                    if file_id == *id {
-                        return Ok(f);
-                    }
-                }
-                _ => {
-                    continue;
-                }
-            }
-        }
+    // let mut files: Vec<FileState> = vec![];
 
-        Err(new_custom_error("file state not found"))
+    fn find_file(file_id: u32, files: &mut HashMap<u32, FileState>) -> Option<&mut FileState> {
+        let record = files.get_mut(&file_id);
+        record
     }
 
     let mut temp_prints = vec![];
@@ -82,9 +74,8 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
             }
             LoggerMessage::StartFile { id, name, size } => {
                 let file = find_file(id, &mut files);
-                if let Err(_) = file {
-                    files.push(FileState::FileProgress {
-                        id,
+                if let None = file {
+                    files.insert(id, FileState::FileProgress {
                         name,
                         size,
                         data: 0
@@ -92,10 +83,11 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
                 }
             }
             LoggerMessage::AddData { id, data: add_data } => {
-                let file_state = find_file(id, &mut files)?;
+                let file_state = find_file(id, &mut files)
+                    .ok_or(new_custom_error("no file record"))?;
 
                 match file_state {
-                    FileState::FileProgress { id: _, name, size, data } => {
+                    FileState::FileProgress { name, size, data } => {
                         *data += add_data;
                     }
                     _ => {
@@ -104,9 +96,10 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
                 }
             }
             LoggerMessage::FinishFile { id } => {
-                let file_state = find_file(id, &mut files)?;
+                let file_state = find_file(id, &mut files)
+                    .ok_or(new_custom_error("no file record"))?;
                 match file_state {
-                    FileState::FileProgress { id: _, name, size: _, data: _ } => {
+                    FileState::FileProgress { name, size: _, data: _ } => {
                         *file_state = FileState::ClosedFile {
                             name: name.to_owned()
                         }
@@ -122,7 +115,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
 
         temp_prints.clear();
 
-        let closed = files.iter()
+        let closed = files.values_mut()
             .filter(|x| {
                 match x {
                     FileState::ClosedFile { name: _ } => true,
@@ -133,7 +126,10 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
         for f in closed {
             match f {
                 FileState::ClosedFile { name } => {
-                    println!("{} - ready!", name);
+                    println!("{} - ready!", &name);
+                    *f = FileState::ReportedFile {
+                        name: name.to_owned()
+                    };
                 }
                 _ => {}
             }
@@ -141,9 +137,8 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
 
         execute!(stdout, crossterm::terminal::DisableLineWrap)?;
 
-        for f in files.iter() {
-            if let FileState::FileProgress { id, name, size, data } = f {
-
+        for f in files.values() {
+            if let FileState::FileProgress { name, size, data } = f {
                 let prog = *data as f32 / *size as f32;
                 let prog_str = progress_string(prog, name);
                 temp_prints.push(prog_str.len());
@@ -151,14 +146,6 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
             }
         }
         execute!(stdout, crossterm::terminal::EnableLineWrap)?;
-
-        files = files.into_iter()
-            .filter(|f| {
-                match f {
-                    FileState::FileProgress { id: _, name: _, size: _, data: _ } => true,
-                    _ => false
-                }
-            }).collect();
     }
 
     Ok(())

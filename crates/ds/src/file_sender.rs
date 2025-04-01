@@ -104,6 +104,9 @@ pub fn send_files(
 
                         match chunk {
                             Some(chunk) => {
+                                if chunk.size == 0 {
+                                    return Err(new_custom_error("zero size chunk"));
+                                }
                                 let buf = chunk.to_bytes();
                                 stream.write(&buf)?;
                                 logger.send(LoggerMessage::AddData { 
@@ -149,7 +152,9 @@ pub fn send_files(
                     FileStreamState::Working(1) => {
                         files_to_send -= 1;
                         *stream_state = FileStreamState::Finished;
-                        logger.send(LoggerMessage::FinishFile { id: id })?;
+                        logger.send(LoggerMessage::FinishFile {
+                            id
+                        })?;
                     }
                     FileStreamState::Working(x) if *x > 1 => {
                         *x -= 1;

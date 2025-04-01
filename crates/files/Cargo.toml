@@ -9,4 +9,5 @@ serde = { version = "1.0.218", features = ["derive"] }
 errors = { path = "../errors" }
 thread_pool = { path = "../thread_pool" }
 net = { path = "../net" }
+common = { path = "../common" }
 

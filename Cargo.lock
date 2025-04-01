@@ -84,6 +84,7 @@ dependencies = [
 name = "files"
 version = "0.1.0"
 dependencies = [
+ "common",
  "errors",
  "net",
  "serde",

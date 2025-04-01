@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf, sync::mpsc::{channel, Sender}};
+use std::{io::Write, net::TcpStream, path::PathBuf, sync::mpsc::{channel, Sender}};
 
 use errors::{new_custom_error, GenericError};
 use files::FileReaderManager;
@@ -6,6 +6,21 @@ use net::{JSONReader, TcpEndpoint};
 use thread_pool::ThreadPool;
 
 use crate::{logger::LoggerMessage, messages::{DSMessage, DSMessageType, DownloadFile, MessageFiles}};
+
+fn write_bytes(stream: &mut TcpStream, buf: &[u8]) ->
+    Result<(), GenericError> {
+    let mut written = 0;
+
+    while written < buf.len() {
+        let n = stream.write(&buf[written..])?;
+        if n == 0 {
+            return Err(new_custom_error("stream write error"));
+        }
+        written += n;
+    }
+
+    Ok(())
+}
 
 pub fn send_files(
     mut tcp_endpoint: impl TcpEndpoint,
@@ -108,7 +123,7 @@ pub fn send_files(
                                     return Err(new_custom_error("zero size chunk"));
                                 }
                                 let buf = chunk.to_bytes();
-                                stream.write(&buf)?;
+                                write_bytes(&mut stream, &buf)?;
                                 logger.send(LoggerMessage::AddData { 
                                     id: id,
                                     data: chunk.size

@@ -95,7 +95,5 @@ fn main() -> Result<(), GenericError> {
         return Err(err);
     }
 
-    println!("Hello, world!");
-
     Ok(())
 }

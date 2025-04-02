@@ -14,6 +14,12 @@ fn get_local_params() -> Result<(String, String), GenericError> {
     let file = "settings.json";
     let file_name = cur_dir.join(file);
 
+    if !file_name.exists() {
+        let cur_dir = cur_dir.to_str()
+            .ok_or(new_custom_error("cur dir error"))?;
+        return Ok((cur_dir.into(), cur_dir.into()));
+    }
+
     let json = std::fs::read_to_string(file_name)?;
     let json: serde_json::Value = serde_json::from_str(&json)?;
 
@@ -47,29 +53,18 @@ fn main() -> Result<(), GenericError> {
                 let (server_end, addr) = new_server_endpoint(None)?;
                 println!("{:?}", addr);
 
-                let path = match get_local_params() {
-                    Ok((path, _)) => path,
-                    Err(_) => "C:\\Users\\Vasil\\Desktop\\dir_sync\\crates".into()
-                };
+                let path = get_local_params()?.0;
                 let dir = PathBuf::from_str(&path)?;
                 dbg!(&path);
                 file_sender::send_files(server_end, dir, logger_send)?;
             }
             "client" => {
                 if args.len() < 3 {
-                    return Err(new_custom_error("port?"));
+                    return Err(new_custom_error("address?"));
                 }
-                let port: &str = &args[2];
-                let port: u16 = port.parse().unwrap();
-
-                let ip = Ipv4Addr::new(127, 0, 0, 1);
-                let ip = IpAddr::V4(ip);
-                let addr = SocketAddr::new(ip, port);
+                let addr = SocketAddr::from_str(&args[2])?;
                 let client_end = new_client_endpoint(addr)?;
-                let path = match get_local_params() {
-                    Ok((_, path)) => path,
-                    Err(_) => "C:\\Users\\Vasil\\Desktop\\dir_sync\\crates".into()
-                };
+                let path = get_local_params()?.1;
                 let dir = PathBuf::from_str(&path)?;
                 file_receiver::receive_files(client_end, dir, logger_send)?;
             }

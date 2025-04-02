@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fmt::Display, path::StripPrefixError, sync::mpsc::{RecvError, SendError}};
+use std::{convert::Infallible, fmt::Display, net::AddrParseError, path::StripPrefixError, sync::mpsc::{RecvError, SendError}};
 
 pub trait Error: std::error::Error + Send {}
 
@@ -46,3 +46,4 @@ impl Error for StripPrefixError {}
 impl Error for Infallible {}
 impl Error for RecvError {}
 impl<T: Send> Error for SendError<T> {}
+impl Error for AddrParseError {}

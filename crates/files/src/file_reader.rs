@@ -42,9 +42,10 @@ impl FileReader {
 
                 let data = &mut buf[2 * size_of::<u64>()..];
                 let bytes_read = file.read(data)?;
-                let mut chunk = FileChunk::from_bytes(&buf);
+                let mut chunk = FileChunk::new();
                 chunk.offset = read;
                 chunk.size = bytes_read as u64;
+                chunk.data.copy_from_slice(data);
 
                 read += chunk.size;
                 chunk_sender.send(Some(chunk))?;

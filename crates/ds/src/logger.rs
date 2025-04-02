@@ -87,8 +87,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
         record
     }
 
-    let mut temp_prints = vec![];
-
+    let mut first_run = true;
     let mut stdout = stdout();
     loop {
         let message = receiver.recv()?;
@@ -134,10 +133,13 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
             LoggerMessage::NoMessage => { }
         }
 
-        execute!(stdout, cursor::MoveUp(temp_prints.len() as u16))?;
-        execute!(stdout, terminal::Clear(terminal::ClearType::FromCursorDown))?;
+        execute!(stdout, terminal::BeginSynchronizedUpdate)?;
 
-        temp_prints.clear();
+        if !first_run {
+            execute!(stdout, cursor::MoveUp(4))?;
+            execute!(stdout, terminal::Clear(terminal::ClearType::FromCursorDown))?;
+        }
+        first_run = false;
 
         let closed = files.values_mut()
             .filter(|x| {
@@ -159,15 +161,27 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
 
         execute!(stdout, crossterm::terminal::DisableLineWrap)?;
 
+        let in_progress = files.values()
+            .filter(|f| {
+                match f {
+                    FileState::FileProgress { name, size, data } => true,
+                    _ => false
+                }
+            })
+            .count();
+        for _ in 0..4 - in_progress {
+            println!();
+        }
+
         for f in files.values() {
             if let FileState::FileProgress { name, size, data } = f {
-                let prog = *data as f32 / *size as f32;
                 let prog_str = progress_string((*data, *size), name);
-                temp_prints.push(prog_str.len());
                 println!("{}", prog_str);
             }
         }
         execute!(stdout, crossterm::terminal::EnableLineWrap)?;
+
+        execute!(stdout, terminal::EndSynchronizedUpdate)?;
     }
 
     Ok(())

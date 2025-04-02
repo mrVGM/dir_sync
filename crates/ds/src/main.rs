@@ -55,7 +55,6 @@ fn main() -> Result<(), GenericError> {
 
                 let path = get_local_params()?.0;
                 let dir = PathBuf::from_str(&path)?;
-                dbg!(&path);
                 file_sender::send_files(server_end, dir, logger_send)?;
             }
             "client" => {

@@ -92,7 +92,7 @@ pub fn receive_files(
     let files = reader.read_json()?;
     let files: MessageFiles = serde_json::from_value(files)?;
 
-    dbg!(&files);
+    println!("{} files to receive", files.files.len());
 
     enum FileStreamState {
         NotStarted,

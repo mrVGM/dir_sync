@@ -33,13 +33,35 @@ enum FileState {
     ReportedFile
 }
 
+fn format_bytes(bytes: u64) -> String {
+    let kb = 1024;
+    let mb = kb * 1024;
+    let gb = mb * 1024;
+
+    if bytes < mb {
+        let f = bytes as f32 / kb as f32;
+        let str = format!("{:.2}KB", f);
+        return str;
+    }
+
+    if bytes < gb {
+        let f = bytes as f32 / mb as f32;
+        let str = format!("{:.2}MB", f);
+        return str;
+    }
+
+    let f = bytes as f32 / gb as f32;
+    let str = format!("{:.2}GB", f);
+    return str;
+}
+
 pub fn progress_string(progress: (u64, u64), name: &str) -> String {
-    let progress = progress.0 as f32 / progress.1 as f32;
+    let progress_float = progress.0 as f32 / progress.1 as f32;
     let mut bar: String = "".into();
     let len = 15;
     for i in 0..len {
         let cur = i as f32 / len as f32;
-        if cur <= progress {
+        if cur <= progress_float {
             bar.push('#');
         }
         else {
@@ -47,7 +69,12 @@ pub fn progress_string(progress: (u64, u64), name: &str) -> String {
         }
     }
 
-    format!("[{}] {}", bar, name)
+    let completion = format!(
+        "{}/{}",
+        format_bytes(progress.0),
+        format_bytes(progress.1));
+
+    format!("[{}] {} {}", bar, completion, name)
 }
 
 pub fn log_progress(receiver: Receiver<LoggerMessage>)

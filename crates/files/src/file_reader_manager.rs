@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::{mpsc::{channel, Sender}, Arc}};
 
-use errors::GenericError;
+use errors::{new_custom_error, GenericError};
 use thread_pool::ThreadPool;
 
 use crate::{file_reader::FileReader, list_to_path, FileEntry};
@@ -57,7 +57,9 @@ impl FileReaderManager {
                             ReaderState::Def(f) => {
                                 let message_sender = message_sender.clone();
                                 let file = list_to_path(&f.partial_path);
-                                let name = file.to_str().unwrap().to_owned();
+                                let name = file.to_str()
+                                    .ok_or(new_custom_error("no file name"))?
+                                    .to_owned();
                                 let file = root.join(file);
                                 let reader = FileReader::new(id, name, file, f.size, &pool_clone, message_sender);
                                 let reader = Arc::new(reader);

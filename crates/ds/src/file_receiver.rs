@@ -159,7 +159,9 @@ pub fn receive_files(
             for _ in 0..2 {
                 let mut stream = tcp_endpoint.get_connection()?;
                 let logger = logger.clone();
-                let name = file_path.to_str().unwrap().to_owned();
+                let name = file_path.to_str()
+                    .ok_or(new_custom_error("no file path"))?
+                    .to_owned();
 
                 let writer = Arc::clone(&writer);
                 pool.execute(move || -> Result<(), GenericError> {

@@ -14,8 +14,7 @@ pub fn get_files_in_dir(dir: &std::path::Path) -> Result<Vec<FileEntry>, Generic
 
     let mut files = vec![];
 
-    while !to_process.is_empty() {
-        let cur = to_process.pop_front().unwrap();
+    while let Some(cur) = to_process.pop_front() {
         let read_dir = std::fs::read_dir(cur)?;
 
         for item in read_dir {

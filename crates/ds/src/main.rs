@@ -1,4 +1,4 @@
-use std::{net::{IpAddr, Ipv4Addr, SocketAddr}, path::PathBuf, str::FromStr, sync::mpsc::channel};
+use std::{net::SocketAddr, path::PathBuf, str::FromStr, sync::mpsc::channel};
 
 use errors::{new_custom_error, GenericError};
 use net::{new_client_endpoint, new_server_endpoint};

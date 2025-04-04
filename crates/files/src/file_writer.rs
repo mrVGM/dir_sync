@@ -1,12 +1,11 @@
-use std::{io::Write, path::Path, sync::{mpsc::{channel, Receiver, Sender}, Arc}};
+use std::{io::Write, path::Path, sync::mpsc::{channel, Sender}};
 
 use common::FileStreamMessage;
-use errors::{new_custom_error, GenericError};
+use errors::GenericError;
 use thread_pool::ThreadPool;
-use crate::{file_chunk::{FileChunk, FILE_CHUNK_MAX_SIZE}, file_reader_manager::FileReaderMessage};
+use crate::file_chunk::FileChunk;
 
 pub struct FileWriter {
-    id: u32,
     chunk_sender: Sender<FileChunk>,
 }
 
@@ -63,13 +62,12 @@ impl FileWriter {
         });
 
         Ok(FileWriter {
-            id,
             chunk_sender,
         })
     }
 
     pub fn push_chunk(&self, chunk: FileChunk) -> Result<(), GenericError> {
-        let res = self.chunk_sender.send(chunk)?;
+        let _ = self.chunk_sender.send(chunk)?;
         Ok(())
     }
 }

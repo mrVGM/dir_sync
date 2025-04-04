@@ -4,7 +4,6 @@ use crossterm::{cursor, execute, terminal};
 use errors::{new_custom_error, GenericError};
 
 pub enum LoggerMessage {
-    NoMessage,
     StartFile {
         id: u32,
         name: String,
@@ -17,7 +16,6 @@ pub enum LoggerMessage {
     FinishFile {
         id: u32
     },
-    CloseLogger,
 }
 
 #[derive(Debug)]
@@ -112,9 +110,6 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
     loop {
         let message = receiver.recv()?;
         match message {
-            LoggerMessage::CloseLogger => {
-                break;
-            }
             LoggerMessage::StartFile { id, name, size } => {
                 let file = find_file(id, &mut files);
                 if let None = file {
@@ -134,7 +129,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
                     .ok_or(new_custom_error("no file record"))?;
 
                 match file_state {
-                    FileState::FileProgress { last_update, name, size, data } => {
+                    FileState::FileProgress { last_update, name: _, size: _, data } => {
                         *data += add_data;
 
                         let time_stamp = SystemTime::now();
@@ -160,7 +155,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
                 let file_state = find_file(id, &mut files)
                     .ok_or(new_custom_error("no file record"))?;
                 match file_state {
-                    FileState::FileProgress { last_update, name, size: _, data: _ } => {
+                    FileState::FileProgress { last_update: _, name, size: _, data: _ } => {
                         *file_state = FileState::ClosedFile {
                             name: name.to_owned()
                         }
@@ -168,7 +163,6 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
                     _ => { }
                 }
             }
-            LoggerMessage::NoMessage => { }
         }
 
         execute!(stdout, terminal::BeginSynchronizedUpdate)?;
@@ -202,7 +196,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
         let in_progress = files.values()
             .filter(|f| {
                 match f {
-                    FileState::FileProgress { last_update, name, size, data } => true,
+                    FileState::FileProgress { last_update: _, name: _, size: _, data: _ } => true,
                     _ => false
                 }
             })
@@ -223,6 +217,4 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
 
         execute!(stdout, terminal::EndSynchronizedUpdate)?;
     }
-
-    Ok(())
 }

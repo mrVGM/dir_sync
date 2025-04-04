@@ -22,7 +22,6 @@ impl FileChunk {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         let u64_size = size_of::<u64>();
-        let u8_size = size_of::<u8>();
         let data_len = (self.size as usize) * size_of::<u8>(); 
         let len = 2 * u64_size + data_len;
         let mut res = Vec::with_capacity(len);

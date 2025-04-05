@@ -2,6 +2,7 @@ use std::{net::SocketAddr, path::PathBuf, str::FromStr, sync::mpsc::channel};
 
 use errors::{new_custom_error, GenericError};
 use net::{new_client_endpoint, new_server_endpoint};
+use network_interface::NetworkInterfaceConfig;
 use thread_pool::ThreadPool;
 
 mod file_sender;
@@ -51,7 +52,34 @@ fn main() -> Result<(), GenericError> {
         match run {
             "server" => {
                 let (server_end, addr) = new_server_endpoint(None)?;
+                let port = addr.port();
                 println!("{:?}", addr);
+
+                let net_interfaces = network_interface::NetworkInterface::show();
+                if let Ok(net_interfaces) = net_interfaces {
+                    for n in net_interfaces.iter() {
+                        let net_name = &n.name;
+                        let mut addr = n.addr.iter()
+                            .map(|a| {
+                                let ip = a.ip();
+                                match ip {
+                                    std::net::IpAddr::V4(ip) => Some(ip),
+                                    _ => None
+                                }
+                            })
+                            .filter(|x| {
+                                match x {
+                                    Some(_) => true,
+                                    None => false
+                                }
+                            });
+
+                        let addr = addr.next();
+                        if let Some(Some(addr)) = addr {
+                            println!("{}:{} - {}", addr, port, net_name);
+                        }
+                    }
+                }
 
                 let path = get_local_params()?.0;
                 let dir = PathBuf::from_str(&path)?;

@@ -12,4 +12,5 @@ files = { path = "../files" }
 thread_pool = { path = "../thread_pool" }
 crossterm = "0.28.1"
 common = { path = "../common" }
+network-interface = "2.0.1"
 

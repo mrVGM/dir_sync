@@ -1,4 +1,4 @@
-use std::{io::stdout, net::SocketAddr, path::PathBuf, str::FromStr, sync::mpsc::channel};
+use std::{io::{stdin, stdout, Write}, net::SocketAddr, path::PathBuf, str::FromStr, sync::mpsc::channel};
 
 use crossterm::{cursor, execute};
 use errors::{new_custom_error, GenericError};
@@ -13,29 +13,30 @@ mod logger;
 
 fn get_local_params() -> Result<(String, String), GenericError> {
     let cur_dir = std::env::current_dir()?;
-    let file = "settings.json";
-    let file_name = cur_dir.join(file);
+    let cur_dir = cur_dir.to_str()
+        .ok_or(new_custom_error("cur dir error"))?;
+    Ok((cur_dir.into(), cur_dir.into()))
+}
 
-    if !file_name.exists() {
-        let cur_dir = cur_dir.to_str()
-            .ok_or(new_custom_error("cur dir error"))?;
-        return Ok((cur_dir.into(), cur_dir.into()));
+enum Transfer {
+    SendFiles,
+    ReceiveFiles,
+}
+fn ask_for_transfer_type() -> Result<Transfer, GenericError> {
+    print!("(S)end or (R)eceive files? ");
+    stdout().flush().unwrap();
+    let stdin = stdin();
+    let mut buf = String::new();
+    stdin.read_line(&mut buf)?;
+    let buf = buf.trim();
+    if buf.eq_ignore_ascii_case("S") {
+        return Ok(Transfer::SendFiles);
+    }
+    if buf.eq_ignore_ascii_case("R") {
+        return Ok(Transfer::ReceiveFiles);
     }
 
-    let json = std::fs::read_to_string(file_name)?;
-    let json: serde_json::Value = serde_json::from_str(&json)?;
-
-    let json_object = json.as_object().ok_or(new_custom_error("not valid"))?;
-    let path = json_object.get("path")
-        .ok_or(new_custom_error("path not found"))?
-        .as_str()
-        .ok_or(new_custom_error("path not found"))?;
-    let outpath = json_object.get("outpath")
-        .ok_or(new_custom_error("path not found"))?
-        .as_str()
-        .ok_or(new_custom_error("path not found"))?;
-
-    Ok((path.to_string(), outpath.to_string()))
+    Err(new_custom_error("transfer type not parsed"))
 }
 
 fn main() -> Result<(), GenericError> {
@@ -51,6 +52,16 @@ fn main() -> Result<(), GenericError> {
     if args.len() < 2 {
         return Err(new_custom_error("server or client"));
     }
+    let transfer = loop {
+        let transfer = ask_for_transfer_type();
+        match transfer {
+            Ok(x) => {
+                break x;
+            }
+            Err(_) => {}
+        }
+    };
+
     let pool = ThreadPool::new(2);
 
     let (logger_send, logger_receive) = channel();
@@ -92,7 +103,14 @@ fn main() -> Result<(), GenericError> {
 
                 let path = get_local_params()?.0;
                 let dir = PathBuf::from_str(&path)?;
-                file_sender::send_files(server_end, dir, logger_send)?;
+                match transfer {
+                    Transfer::SendFiles => {
+                        file_sender::send_files(server_end, dir, logger_send)?;
+                    }
+                    Transfer::ReceiveFiles => {
+                        file_receiver::receive_files(server_end, dir, logger_send)?;
+                    }
+                }
             }
             "client" => {
                 if args.len() < 3 {
@@ -102,7 +120,14 @@ fn main() -> Result<(), GenericError> {
                 let client_end = new_client_endpoint(addr)?;
                 let path = get_local_params()?.1;
                 let dir = PathBuf::from_str(&path)?;
-                file_receiver::receive_files(client_end, dir, logger_send)?;
+                match transfer {
+                    Transfer::SendFiles => {
+                        file_sender::send_files(client_end, dir, logger_send)?;
+                    }
+                    Transfer::ReceiveFiles => {
+                        file_receiver::receive_files(client_end, dir, logger_send)?;
+                    }
+                }
             }
             _ => Err(errors::new_custom_error("CLI Error"))?
         }

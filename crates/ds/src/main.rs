@@ -1,5 +1,6 @@
-use std::{net::SocketAddr, path::PathBuf, str::FromStr, sync::mpsc::channel};
+use std::{io::stdout, net::SocketAddr, path::PathBuf, str::FromStr, sync::mpsc::channel};
 
+use crossterm::{cursor, execute};
 use errors::{new_custom_error, GenericError};
 use net::{new_client_endpoint, new_server_endpoint};
 use network_interface::NetworkInterfaceConfig;
@@ -38,6 +39,14 @@ fn get_local_params() -> Result<(String, String), GenericError> {
 }
 
 fn main() -> Result<(), GenericError> {
+    ctrlc::set_handler(|| {
+        let report_channel = thread_pool::get_report_channel();
+        report_channel.send(Some(new_custom_error("terminated by user"))).unwrap();
+    }).map_err(|e| {
+        let err = format!("{}", e);
+        new_custom_error(&err)
+    })?;
+
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         return Err(new_custom_error("server or client"));
@@ -113,9 +122,11 @@ fn main() -> Result<(), GenericError> {
         channel.recv()?
     };
 
-    if let Some(err) = err {
-        return Err(err);
-    }
+    let mut stdout = stdout();
+    execute!(stdout, cursor::Show)?;
 
-    Ok(())
+    match err {
+        Some(err) => Err(err),
+        None => Ok(())
+    }
 }

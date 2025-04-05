@@ -107,6 +107,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
 
     let mut first_run = true;
     let mut stdout = stdout();
+    execute!(stdout, cursor::Hide)?;
     loop {
         let message = receiver.recv()?;
         match message {

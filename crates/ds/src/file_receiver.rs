@@ -1,4 +1,4 @@
-use std::{io::{Read, Write}, net::TcpStream, path::PathBuf, sync::{mpsc::{channel, Sender}, Arc}};
+use std::{io::{Read, Write}, net::TcpStream, path::PathBuf, sync::{mpsc::{channel, Sender}, Arc, Mutex}};
 
 use common::FileStreamMessage;
 use errors::{new_custom_error, GenericError};
@@ -129,7 +129,13 @@ pub fn receive_files(
     let logger_clone = logger.clone();
 
     let root = root.clone();
+
+    let tcp_endpoint = Arc::new(Mutex::new(tcp_endpoint));
+    let tcp_endpoint_clone = Arc::clone(&tcp_endpoint);
+
     pool.execute(move || -> Result<(), GenericError> {
+        let tcp_endpoint = &mut *tcp_endpoint_clone.lock().unwrap();
+
         let pool = pool_clone;
         let logger = logger_clone;
 
@@ -240,6 +246,8 @@ pub fn receive_files(
             break;
         }
     }
+
+    drop(tcp_endpoint);
 
     Ok(())
 }

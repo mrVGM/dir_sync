@@ -152,6 +152,7 @@ pub fn receive_files(
             fs_send.send(FileStreamMessage::Start(id))?;
 
             let file_path = files::list_to_path(&f.partial_path);
+            let file_relative_path = file_path.to_owned();
             let file_path = root.join(file_path);
             let writer = FileWriter::new(
                 id,
@@ -165,7 +166,7 @@ pub fn receive_files(
             for _ in 0..2 {
                 let mut stream = tcp_endpoint.get_connection()?;
                 let logger = logger.clone();
-                let name = file_path.to_str()
+                let name = file_relative_path.to_str()
                     .ok_or(new_custom_error("no file path"))?
                     .to_owned();
 

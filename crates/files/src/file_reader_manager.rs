@@ -11,8 +11,14 @@ pub enum ReaderState {
     Closed
 }
 
+pub enum ReaderResult {
+    FirstInstance(Arc<FileReader>),
+    Instance(Arc<FileReader>),
+    NoReader
+}
+
 pub enum FileReaderMessage {
-    GetReader(u32, Sender<Option<Arc<FileReader>>>),
+    GetReader(u32, Sender<ReaderResult>),
     ReaderFinished(u32)
 }
 
@@ -48,11 +54,11 @@ impl FileReaderManager {
                         let state = &files[id as usize];
                         match state {
                             ReaderState::Closed => {
-                                sender.send(None)?;
+                                sender.send(ReaderResult::NoReader)?;
                             }
                             ReaderState::Reader(reader) => {
                                 let reader = Arc::clone(&reader);
-                                sender.send(Some(reader))?;
+                                sender.send(ReaderResult::Instance(reader))?;
                             }
                             ReaderState::Def(f) => {
                                 let message_sender = message_sender.clone();
@@ -64,7 +70,7 @@ impl FileReaderManager {
                                 let reader = FileReader::new(id, name, file, f.size, &pool_clone, message_sender);
                                 let reader = Arc::new(reader);
                                 files[id as usize] = ReaderState::Reader(Arc::clone(&reader));
-                                sender.send(Some(reader))?;
+                                sender.send(ReaderResult::FirstInstance(reader))?;
                             }
                         }
                     }
@@ -81,7 +87,7 @@ impl FileReaderManager {
         }
     }
 
-    pub fn get_reader(&self, id: u32) -> Option<Arc<FileReader>> {
+    pub fn get_reader(&self, id: u32) -> ReaderResult {
         let (sender, receiver) = channel();
         self.channel.send(FileReaderMessage::GetReader(id, sender)).unwrap(); 
         let res = receiver.recv().unwrap();

@@ -1,7 +1,7 @@
 use std::{io::Write, net::TcpStream, path::PathBuf, sync::mpsc::{channel, Sender}};
 
 use errors::{new_custom_error, GenericError};
-use files::FileReaderManager;
+use files::{FileReaderManager, ReaderResult};
 use net::{JSONReader, TcpEndpoint};
 use thread_pool::ThreadPool;
 
@@ -86,6 +86,12 @@ pub fn send_files(
     let pool_clone = pool.clone();
 
     let logger_clone = logger.clone();
+
+    let (slot_sender, slot_receiver) = channel();
+    for _ in 0..4 {
+        slot_sender.send(())?;
+    }
+
     pool.execute(move || -> Result<(), GenericError> {
         let fs_sender = fs_sender_clone;
         let pool = pool_clone;
@@ -102,7 +108,19 @@ pub fn send_files(
 
             let download: DownloadFile = serde_json::from_value(message)?;
             let id = download.id;
-            let reader = manager.get_reader(id);
+            let reader = { 
+                let reader_result = manager.get_reader(id);
+                match reader_result {
+                    ReaderResult::NoReader => None,
+                    ReaderResult::FirstInstance(reader) => {
+                        slot_receiver.recv()?;
+                        Some(reader)
+                    }
+                    ReaderResult::Instance(reader) => {
+                        Some(reader)
+                    }
+                }
+            };
 
             let sender = fs_sender.clone();
             let logger = logger.clone();
@@ -170,6 +188,8 @@ pub fn send_files(
                         logger.send(LoggerMessage::FinishFile {
                             id
                         })?;
+
+                        slot_sender.send(())?;
                     }
                     FileStreamState::Working(x) if *x > 1 => {
                         *x -= 1;

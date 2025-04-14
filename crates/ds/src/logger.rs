@@ -64,7 +64,7 @@ pub fn progress_string(progress: (u64, u64), last_update: &(SystemTime, u64), na
             bar.push('#');
         }
         else {
-            bar.push('.');
+            bar.push('-');
         }
     }
 

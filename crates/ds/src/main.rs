@@ -11,6 +11,8 @@ mod file_receiver;
 mod messages;
 mod logger;
 
+static PARALLEL_TRANSFERS: u8 = 4;
+
 fn get_local_params() -> Result<(String, String), GenericError> {
     let cur_dir = std::env::current_dir()?;
     let cur_dir = cur_dir.to_str()

@@ -169,7 +169,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
         execute!(stdout, terminal::BeginSynchronizedUpdate)?;
 
         if !first_run {
-            execute!(stdout, cursor::MoveUp(4))?;
+            execute!(stdout, cursor::MoveUp(crate::PARALLEL_TRANSFERS as u16))?;
             execute!(stdout, terminal::Clear(terminal::ClearType::FromCursorDown))?;
         }
         first_run = false;
@@ -202,7 +202,7 @@ pub fn log_progress(receiver: Receiver<LoggerMessage>)
                 }
             })
             .count();
-        for _ in 0..4 - in_progress {
+        for _ in 0..(crate::PARALLEL_TRANSFERS as usize - in_progress) {
             println!();
         }
 

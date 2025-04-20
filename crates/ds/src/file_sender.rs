@@ -60,7 +60,7 @@ pub fn send_files(
             }
         }).count();
 
-    let manager = FileReaderManager::new(dir, &files);
+    let manager = FileReaderManager::new(dir, &files, crate::PARALLEL_TRANSFERS);
 
     match message.message_type {
         DSMessageType::GetFileList => {
@@ -82,13 +82,13 @@ pub fn send_files(
     let (fs_sender, fs_receiver) = channel();
     let fs_sender_clone = fs_sender.clone();
 
-    let pool = ThreadPool::new(9);
+    let pool = ThreadPool::new(2 * crate::PARALLEL_TRANSFERS + 1);
     let pool_clone = pool.clone();
 
     let logger_clone = logger.clone();
 
     let (slot_sender, slot_receiver) = channel();
-    for _ in 0..4 {
+    for _ in 0..crate::PARALLEL_TRANSFERS {
         slot_sender.send(())?;
     }
 

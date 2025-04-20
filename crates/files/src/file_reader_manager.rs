@@ -29,7 +29,8 @@ pub struct FileReaderManager {
 impl FileReaderManager {
     pub fn new(
         root: PathBuf,
-        files: &Vec<FileEntry>) -> Self {
+        files: &Vec<FileEntry>,
+        max_live_readers: u8) -> Self {
 
         let (message_sender, receiver) = channel();
         let messege_sender_clone = message_sender.clone();
@@ -38,7 +39,7 @@ impl FileReaderManager {
             ReaderState::Def(f.clone())
         }).collect();
 
-        let pool = ThreadPool::new(5);
+        let pool = ThreadPool::new(max_live_readers + 1);
         let pool_clone = pool.clone();
 
         let root_clone = root.clone();

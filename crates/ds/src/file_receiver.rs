@@ -118,13 +118,13 @@ pub fn receive_files(
         }).count();
 
     let (slot_send, slot_receive) = channel();
-    for _ in 0..4 {
+    for _ in 0..crate::PARALLEL_TRANSFERS {
         slot_send.send(())?;
     }
 
     let (fs_send, fs_receive) = channel();
 
-    let pool = ThreadPool::new(9);
+    let pool = ThreadPool::new(2 * crate::PARALLEL_TRANSFERS + 1);
     let pool_clone = pool.clone();
     let logger_clone = logger.clone();
 
@@ -139,7 +139,7 @@ pub fn receive_files(
         let pool = pool_clone;
         let logger = logger_clone;
 
-        let writer_pool = ThreadPool::new(4);
+        let writer_pool = ThreadPool::new(crate::PARALLEL_TRANSFERS);
 
         for (i, f) in files.files.iter().enumerate() {
             if f.size == 0 {

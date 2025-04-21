@@ -231,10 +231,10 @@ pub fn receive_files(
                         return Err(new_custom_error("download process not started"));
                     }
                     FileStreamState::Working => {
+                        logger.send(LoggerMessage::FinishFile { id: id })?;
                         *state = FileStreamState::Finished;
                         files_to_receive -= 1;
                         let _ = slot_send.send(());
-                        logger.send(LoggerMessage::FinishFile { id: id })?;
                     }
                     _ => {
                         return Err(new_custom_error("download process already finished"));
